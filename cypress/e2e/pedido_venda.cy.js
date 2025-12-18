@@ -62,7 +62,7 @@ describe('RF005 - Pedidos de Venda', () => {
         
         expect(doc.net_total).to.eq(valorEsperado);
 
-        cy.log('Valor Validado: ${doc.net_total} (Esperado: ${valorEsperado})');
+        cy.log(`Valor Validado: ${doc.net_total} (Esperado: ${valorEsperado})`);
     });
     cy.screenshot('CT005-02-pedido-venda-alterado-com-sucesso');
   });

@@ -121,6 +121,18 @@ Cypress.Commands.add('submit_doc', () => {
     cy.wait(1000);
 });
 
+// Cancelar via Código
+Cypress.Commands.add('cancel_doc', () => {
+    cy.window().then((win) => {
+        // O método de cancelamento exige passar pelo fluxo de workflow às vezes
+        return win.cur_frm.save('Cancel');
+    });
+    // O ERPNext quase sempre pede confirmação "Tem certeza que deseja cancelar?"
+    // Usa o bypass para dizer "Sim" automaticamente
+    cy.bypass_confirm();
+    cy.wait(1000);
+});
+
 // Simula a criação de um documento a partir de outro
 Cypress.Commands.add('create_mapped_doc', (method, source_name) => {
     cy.window().then((win) => {
@@ -131,4 +143,36 @@ Cypress.Commands.add('create_mapped_doc', (method, source_name) => {
     });
     // Espera a nova tela carregar
     cy.get('.title-text').should('contain', 'Novo'); 
+});
+
+// Comando para criar qualquer documento via API REST
+Cypress.Commands.add('create_doc', (doctype, data) => {
+    
+    return cy.request({
+        method: 'POST',
+        url: `http://localhost:8080/api/resource/${doctype}`,
+        body: data,
+        failOnStatusCode: false // Para podermos tratar erros manualmente se precisar
+    }).then((response) => {
+        if (response.status !== 200) {
+            // Tenta extrair a mensagem de erro legível do Frappe
+            let errorMsg = 'Erro desconhecido';
+            
+            if (response.body.exception) errorMsg = response.body.exception;
+            if (response.body._server_messages) {
+                try {
+                    const messages = JSON.parse(response.body._server_messages);
+                    errorMsg = JSON.parse(messages[0]).message;
+                } catch (e) {}
+            }
+
+            // Imprime o erro no console do Cypress para você ler
+            cy.log(`ERRO API (${doctype}): ${errorMsg}`);
+            console.error('Detalhes do Erro API:', response.body);
+            
+            throw new Error(`Falha ao criar ${doctype}: ${errorMsg}`);
+        }
+        // Retorna o corpo da resposta (contém o 'data' com o nome do doc criado)
+        return response.body.data;
+    });
 });

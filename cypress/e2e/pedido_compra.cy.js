@@ -3,9 +3,11 @@ describe('RF006 - Pedidos de Compra', () => {
         cy.login_api(); //Login com administrador padrão
     });
 
-    it.only('CT006-01: Fluxo de compra com fornecedor selecionado', () => {
+    it('CT006-01: Fluxo de compra com fornecedor selecionado', () => {
         // Requisição de Material
         cy.visit('http://localhost:8080/app/material-request/new');
+        cy.get('.title-text').should('contain', 'Novo(a) Requisição de Material');
+
         cy.set_field('schedule_date', '2025-12-31');
         cy.set_child_row('items', { 'item_code': 'SKU002', 'qty': 50 }, 0);
         cy.save_doc();
@@ -15,7 +17,8 @@ describe('RF006 - Pedidos de Compra', () => {
 
         // Pedido de Compra (Purchase Order)
         cy.visit('http://localhost:8080/app/purchase-order/new');
-        
+        cy.get('.title-text').should('contain', 'Novo(a) Pedido de Compra');
+
         cy.set_field('supplier', 'Summit Traders Ltd.');
         cy.set_field('schedule_date', '2025-12-31');
         
@@ -38,27 +41,27 @@ describe('RF006 - Pedidos de Compra', () => {
 
     it('CT006-02: Pedido de Compra a partir de Requisição Aprovada', () => {
         //Ter uma Requisição de Material Aprovada
-        const mrName = `MR-TEST-${Date.now()}`;
-        
-        // Criação rápida via API (Backend)
-        cy.window().then((win) => {
-            return win.frappe.db.insert({
-                doctype: 'Material Request',
+        const reqData = {
                 material_request_type: 'Purchase',
+                transaction_date: '2025-01-01',
                 schedule_date: '2025-12-31',
+                company: 'SS Empreendimentos',
                 items: [{ 
                     item_code: 'SKU002', 
                     qty: 100, 
                     schedule_date: '2025-12-31',
-                    uom: 'Unidade'
+                    uom: 'Nos',
+                    warehouse: 'Lojas - DVV',
+                    description: 'Item Teste'
                 }],
                 docstatus: 1 // 1 = Submetido
-            });
-        }).then((mrDoc) => {
+            };
+        
+        cy.create_doc('Material Request', reqData).then((mrDoc) => {
             // Ir para a Requisição e Criar Pedido
-            cy.visit('http://localhost:8080/app/material-request/${mrDoc.name}');
-            
-            // Simula clicar em "Create > Purchase Order"
+            cy.visit(`http://localhost:8080/app/material-request/${mrDoc.name}`);
+            cy.get('.title-text').should('contain', 'Laptop');
+            // Simula clicar em "Criar > Pedido de Compra"
             cy.create_mapped_doc(
                 'erpnext.stock.doctype.material_request.material_request.make_purchase_order',
                 mrDoc.name
@@ -66,7 +69,7 @@ describe('RF006 - Pedidos de Compra', () => {
         });
 
         // Inserir Fornecedor
-        cy.get('.title-text').should('contain', 'Novo(a) Pedido de Compra');
+        cy.get('.title-text', { timeout: 10000 }).should('contain', 'Novo(a) Pedido de Compra');
         cy.set_field('supplier', 'Summit Traders Ltd.');
 
         // Valida que os itens vieram da requisição
@@ -82,7 +85,7 @@ describe('RF006 - Pedidos de Compra', () => {
 
         // - Pedido criado
         cy.get('.indicator-pill').should('satisfy', (el) => 
-            el.text().includes('To Receive') || el.text().includes('A Receber') || el.text().includes('Ordered')
+            el.text().includes('To Receive') || el.text().includes('Para Receber') || el.text().includes('Ordered')
         );
 
         // Status da Requisição original deve atualizar para 'Ordered' (Pedido)
@@ -99,18 +102,15 @@ describe('RF006 - Pedidos de Compra', () => {
 
     it('CT006-03: Fluxo de Rejeição e Novo Ciclo de Cotação', () => {
         // Uma Cotação de Fornecedor Ativa (Submetida)
-        const sqName = `SQ-TEST-${Date.now()}`;
-
-        // Cria e Submete uma Cotação via API
-        cy.window().then((win) => {
-            return win.frappe.db.insert({
-                doctype: 'Supplier Quotation',
+        //Criar Cotação via API REST
+        const quoteData = {
                 supplier: 'Summit Traders Ltd.',
                 items: [{ item_code: 'SKU002', qty: 50, rate: 10000 }], // Preço alto proposital
                 docstatus: 1 // Já nasce Submetida (Aguardando aprovação/decisão)
-            });
-        }).then((sqDoc) => {
-            cy.visit('http://localhost:8080/app/supplier-quotation/${sqDoc.name}');
+        };
+        cy.create_doc('Supplier Quotation', quoteData).then((sqDoc) => {
+            cy.visit(`http://localhost:8080/app/supplier-quotation/${sqDoc.name}`);
+            cy.get('.title-text').should('contain', 'Summit');
         });
 
         // Ação de Rejeição
@@ -139,7 +139,7 @@ describe('RF006 - Pedidos de Compra', () => {
             const frm = win.cur_frm;
             const row = frm.doc.items[0];
             
-            // Reduz o preço de 1000 para 800
+            // Reduz o preço de 10000 para 800
             await win.frappe.model.set_value(row.doctype, row.name, 'rate', 800);
             
             // (Opcional) Adiciona observação de revisão
