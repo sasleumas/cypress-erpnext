@@ -80,7 +80,7 @@ describe('RF007 - Rastreamento de Estoque', () => {
         cy.screenshot('CT007-02-transferencia-atualizacao-saldo');
     });
 
-    it.only('CT007-03: Mensagem para SKU inexistente', () => {
+    it('CT007-03: Mensagem para SKU inexistente', () => {
         // Injeta o filtro direto na URL para garantir que o teste rode rápido
         const skuInvalido = 'SKU-FANTASMA-999';
         cy.visit(`http://localhost:8080/app/query-report/Stock Balance?item_code=${skuInvalido}`);
